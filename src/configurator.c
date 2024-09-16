@@ -111,6 +111,6 @@ void config_window_open(GtkApplication *ignored, gpointer user_data)
 #else
 
 void config_load(GtkApplication *app) {}
-void config_window_open(gpointer *ignored, gpointer user_data) {}
+void config_window_open(GtkApplication *ignored, gpointer user_data) {}
 
 #endif /* HAVE_CONFIG_SETTINGS */

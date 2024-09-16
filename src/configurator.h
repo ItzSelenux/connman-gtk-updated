@@ -42,6 +42,6 @@ extern gboolean use_fsid;
 extern GHashTable *openconnect_fsid_table;
 
 void config_load(GtkApplication *app);
-void config_window_open(GtkApplication *app, gpointer user_data);
+void config_window_open(GtkApplication *ignored, gpointer user_data);
 
 #endif /* _CONNMAN_GTK_CONFIG_H */

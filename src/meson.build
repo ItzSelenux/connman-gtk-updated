@@ -19,9 +19,8 @@ connman_gtk_sources = [
 if (not openconnect.found())
 	openconnect = declare_dependency()
 endif
-
 executable(meson.project_name(),
-	   connman_gtk_sources,
-	   dependencies : [gtk, glib, openconnect, dl],
-	   include_directories: extra_includes,
-	   install: true)
+           connman_gtk_sources,
+           dependencies : [gtk, glib, openconnect, dl, appindicator_dep],
+           include_directories: extra_includes,
+           install: true)

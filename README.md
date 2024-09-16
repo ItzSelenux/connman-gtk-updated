@@ -1,7 +1,7 @@
-connman-gtk
+connman-gtk Updated
 ===========
 
-GTK GUI for ConnMan.
+GTK GUI for ConnMan, Updated
 
 ![screenshot-1](https://raw.githubusercontent.com/jgke/jgke.github.io/connman-gtk/connman-gtk-1.png)
 ![screenshot-2](https://raw.githubusercontent.com/jgke/jgke.github.io/connman-gtk/connman-gtk-2.png)

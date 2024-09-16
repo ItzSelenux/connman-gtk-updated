@@ -30,11 +30,22 @@
 #include "technology.h"
 
 #ifdef USE_STATUS_ICON
-GtkStatusIcon *icon;
+#include <libayatana-appindicator/app-indicator.h>
+
+AppIndicator *indicator;
+GtkWidget *menu;
+
+	GtkWidget *traymenu_item_openapp;
+	GtkWidget *traymenu_item_openapp2;
+	GtkWidget *traymenu_item_wireless;
+	GtkWidget *traymenu_item_bluetooth;
+	GtkWidget *traymenu_item_vpn;
+	GtkWidget *traymenu_item_exit;
 
 static void status_activate(gpointer *ignored, gpointer user_data)
 {
 	g_signal_emit_by_name(user_data, "activate");
+//todo, not working
 }
 
 static void status_exit(gpointer *ignored, gpointer user_data)
@@ -56,8 +67,7 @@ static GtkWidget *create_service_item(struct service *serv)
 	state = service_get_property_string(serv, "State", NULL);
 	state_r = service_get_property_string_raw(serv, "State", NULL);
 
-	/* Todo: is autoupdate needed here? */
-	if(strcmp(state_r, "idle"))
+	if (strcmp(state_r, "idle"))
 		label = g_markup_printf_escaped("<b>%s - %s</b>", name, state);
 	else
 		label = g_markup_printf_escaped("%s - %s", name, state);
@@ -66,7 +76,7 @@ static GtkWidget *create_service_item(struct service *serv)
 	child = gtk_bin_get_child(GTK_BIN(item));
 	gtk_label_set_markup(GTK_LABEL(child), label);
 	g_signal_connect(item, "activate", G_CALLBACK(status_toggle_connection),
-			 serv);
+					 serv);
 
 	g_free(name);
 	g_free(state);
@@ -76,24 +86,39 @@ static GtkWidget *create_service_item(struct service *serv)
 	return item;
 }
 
-static void status_menu(GtkStatusIcon *icon, guint button, guint activate_time,
-                        gpointer user_data)
+gint gtk_menu_purgue(GtkMenu *target)
 {
-	GtkMenu *menu;
+	GList *children, *iter;
+
+	children = gtk_container_get_children(GTK_CONTAINER(menu));
+
+	for (iter = children; iter != NULL; iter = g_list_next(iter))
+	{
+		gtk_widget_destroy(GTK_WIDGET(iter->data));
+	}
+
+	g_list_free(children);	
+}
+
+static void status_menu(gpointer *ignored, guint button, guint activate_time, gpointer user_data)
+{
 	GtkWidget *open, *exit;
 	int index;
 
-	menu = GTK_MENU(gtk_menu_new());
+	gtk_menu_purgue(GTK_MENU(menu));
+
 
 	open = gtk_menu_item_new_with_label(_("Open app"));
 	exit = gtk_menu_item_new_with_label(_("Exit"));
+	g_print("oaijfeaf");
 	g_signal_connect(open, "activate", G_CALLBACK(status_activate),
-			 user_data);
+					 user_data);
 	g_signal_connect(exit, "activate", G_CALLBACK(status_exit), user_data);
-	gtk_container_add(GTK_CONTAINER(menu), open);
-	gtk_container_add(GTK_CONTAINER(menu), gtk_separator_menu_item_new());
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), open);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), gtk_separator_menu_item_new());
 
-	for(index = CONNECTION_TYPE_ETHERNET; index < CONNECTION_TYPE_COUNT; index++) {
+	for (index = CONNECTION_TYPE_ETHERNET; index < CONNECTION_TYPE_COUNT; index++)
+	{
 		const gchar *label;
 		struct technology *tech;
 		GHashTableIter iter;
@@ -103,107 +128,137 @@ static void status_menu(GtkStatusIcon *icon, guint button, guint activate_time,
 		gboolean has_items = FALSE;
 
 		tech = technologies[index];
-		if(!tech)
+		if (!tech)
 			continue;
-		if(!technology_get_property_bool(tech, "Powered"))
+		if (!technology_get_property_bool(tech, "Powered"))
 			continue;
 		submenu = GTK_MENU(gtk_menu_new());
 		label = translated_tech_name(tech->type);
 		item = GTK_MENU_ITEM(gtk_menu_item_new_with_label(label));
 
 		g_hash_table_iter_init(&iter, tech->services);
-		while(g_hash_table_iter_next(&iter, &key, &service)) {
+		while (g_hash_table_iter_next(&iter, &key, &service))
+		{
 			GtkWidget *item = create_service_item(service);
-			gtk_container_add(GTK_CONTAINER(submenu), item);
+			gtk_menu_shell_append(GTK_MENU_SHELL(submenu), item);
 			has_items = TRUE;
 		}
 
 		gtk_menu_item_set_submenu(item, GTK_WIDGET(submenu));
-		gtk_container_add(GTK_CONTAINER(menu), GTK_WIDGET(item));
-		gtk_widget_set_sensitive(item, has_items);
-
+		gtk_menu_shell_append(GTK_MENU_SHELL(menu), GTK_WIDGET(item));
+		gtk_widget_set_sensitive(GTK_WIDGET(item), has_items);
 	}
 
-	gtk_container_add(GTK_CONTAINER(menu), gtk_separator_menu_item_new());
-	gtk_container_add(GTK_CONTAINER(menu), exit);
-	gtk_widget_show_all(GTK_WIDGET(menu));
-	gtk_menu_popup(menu, NULL, NULL, NULL, NULL, button, activate_time);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), gtk_separator_menu_item_new());
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), exit);
+	gtk_widget_show_all(menu);
+	//gtk_widget_show_all(menu);
+
+	app_indicator_set_menu(indicator, GTK_MENU(menu));
+	//app_indicator_set_status(indicator, APP_INDICATOR_STATUS_ACTIVE);
 }
 
-void status_update(void) {
+void status_update(void)
+{
 	int best_status = 0;
 	int index;
 
-	if(!status_icon_enabled)
+	if (!status_icon_enabled)
 		return;
 
-	for(index = CONNECTION_TYPE_ETHERNET; index < CONNECTION_TYPE_COUNT; index++) {
+	for (index = CONNECTION_TYPE_ETHERNET; index < CONNECTION_TYPE_COUNT; index++)
+	{
 		struct technology *tech;
 		GHashTableIter iter;
 		gpointer key, service;
 
 		tech = technologies[index];
-		if(!tech)
+		if (!tech)
 			continue;
 
 		g_hash_table_iter_init(&iter, tech->services);
-		while(g_hash_table_iter_next(&iter, &key, &service)) {
+		while (g_hash_table_iter_next(&iter, &key, &service))
+		{
 			gchar *state;
 			state = service_get_property_string_raw(service, "State",
-			                                        NULL);
-			switch(best_status) {
-				case 0:
-					if(!strcmp(state, "association"))
-						best_status = 1;
-				case 1:
-					if(!strcmp(state, "configuration"))
-						best_status = 2;
-				case 2:
-					if(!strcmp(state, "ready"))
-						best_status = 3;
-				case 3:
-					if(!strcmp(state, "online"))
-						best_status = 4;
+													NULL);
+			switch (best_status)
+			{
+			case 0:
+				if (!strcmp(state, "association"))
+					best_status = 1;
+			case 1:
+				if (!strcmp(state, "configuration"))
+					best_status = 2;
+			case 2:
+				if (!strcmp(state, "ready"))
+					best_status = 3;
+			case 3:
+				if (!strcmp(state, "online"))
+					best_status = 4;
 			}
 
 			g_free(state);
 
-			if(best_status == 4)
+			if (best_status == 4)
 				break;
 		}
 	}
 
-	switch(best_status) {
-		case 0:
-			gtk_status_icon_set_from_icon_name(icon, "network-offline");
-			break;
-		case 1:
-		case 2:
-			gtk_status_icon_set_from_icon_name(icon, "preferences-system-network");
-			break;
-		case 3:
-		case 4:
-			gtk_status_icon_set_from_icon_name(icon, "network-transmit-receive");
-			break;
+	switch (best_status)
+	{
+	case 0:
+		app_indicator_set_icon(indicator, "network-offline");
+		break;
+	case 1:
+	case 2:
+		app_indicator_set_icon(indicator, "preferences-system-network");
+		break;
+	case 3:
+	case 4:
+		app_indicator_set_icon(indicator, "network-transmit-receive");
+		break;
 	}
 }
 
 void status_init(GtkApplication *app)
 {
-	if(!status_icon_enabled)
+	if (!status_icon_enabled)
 		return;
 
-	icon = gtk_status_icon_new_from_icon_name("preferences-system-network");
-	g_signal_connect(icon, "activate", G_CALLBACK(status_activate), app);
-	g_signal_connect(icon, "popup-menu", G_CALLBACK(status_menu), app);
+	indicator = app_indicator_new("network-status",
+		"preferences-system-network",
+		APP_INDICATOR_CATEGORY_SYSTEM_SERVICES);
 
+	menu = gtk_menu_new();
+
+
+	g_signal_connect(menu, "realize", G_CALLBACK(status_menu), app);
+	app_indicator_set_menu(indicator, GTK_MENU(menu));
+	app_indicator_set_status(indicator, APP_INDICATOR_STATUS_ACTIVE);
+
+	//g_signal_connect(traymenu, "activate", G_CALLBACK(status_activate), app);
+	//g_signal_connect(traymenu, "popup-menu", G_CALLBACK(status_menu), app);
+	//status_menu(app);
+
+	GtkWidget *traymenu = gtk_menu_new();
+
+		// PLACEHOLDERS, FIX, small menu size if the new menu is bigger than the previous menu
+	traymenu_item_openapp = gtk_menu_item_new_with_label("Open App");
+	traymenu_item_openapp2 = gtk_menu_item_new_with_label("Open App");
+	traymenu_item_wireless = gtk_menu_item_new_with_label("Wireless");
+	traymenu_item_bluetooth = gtk_menu_item_new_with_label("Bluetooth");
+	traymenu_item_vpn = gtk_menu_item_new_with_label("VPN");
+	traymenu_item_exit = gtk_menu_item_new_with_label("Exit");
+
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), traymenu_item_openapp);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), traymenu_item_openapp2);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), traymenu_item_wireless);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), traymenu_item_bluetooth);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), traymenu_item_vpn);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), traymenu_item_exit);
+	gtk_widget_show_all(menu);
 	status_update();
 }
-#else
-void status_init(GtkApplication *app)
-{
-}
-void status_update(void)
-{
-}
+
 #endif /* USE_STATUS_ICON */
