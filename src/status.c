@@ -34,6 +34,8 @@
 
 AppIndicator *indicator;
 GtkWidget *menu;
+gboolean menuinit = TRUE;
+gulong indicator_signal_id;
 
 	GtkWidget *traymenu_item_openapp;
 	GtkWidget *traymenu_item_openapp2;
@@ -86,31 +88,30 @@ static GtkWidget *create_service_item(struct service *serv)
 	return item;
 }
 
-gint gtk_menu_purgue(GtkMenu *target)
-{
-	GList *children, *iter;
-
-	children = gtk_container_get_children(GTK_CONTAINER(menu));
-
-	for (iter = children; iter != NULL; iter = g_list_next(iter))
-	{
-		gtk_widget_destroy(GTK_WIDGET(iter->data));
-	}
-
-	g_list_free(children);	
-}
-
 static void status_menu(gpointer *ignored, guint button, guint activate_time, gpointer user_data)
 {
+	if (menuinit)
+	{
+		GList *children, *iter;
+
+		children = gtk_container_get_children(GTK_CONTAINER(menu));
+
+		for (iter = children; iter != NULL; iter = g_list_next(iter))
+		{
+			gtk_widget_destroy(GTK_WIDGET(iter->data));
+		}
+
+		g_list_free(children);
+		menuinit = FALSE;
+		return;
+	}
+
 	GtkWidget *open, *exit;
 	int index;
 
-	gtk_menu_purgue(GTK_MENU(menu));
-
-
 	open = gtk_menu_item_new_with_label(_("Open app"));
 	exit = gtk_menu_item_new_with_label(_("Exit"));
-	g_print("oaijfeaf");
+
 	g_signal_connect(open, "activate", G_CALLBACK(status_activate),
 					 user_data);
 	g_signal_connect(exit, "activate", G_CALLBACK(status_exit), user_data);
@@ -153,7 +154,7 @@ static void status_menu(gpointer *ignored, guint button, guint activate_time, gp
 	gtk_menu_shell_append(GTK_MENU_SHELL(menu), exit);
 	gtk_widget_show_all(menu);
 	//gtk_widget_show_all(menu);
-
+	g_signal_handler_disconnect(indicator, indicator_signal_id);
 	app_indicator_set_menu(indicator, GTK_MENU(menu));
 	//app_indicator_set_status(indicator, APP_INDICATOR_STATUS_ACTIVE);
 }
@@ -232,17 +233,6 @@ void status_init(GtkApplication *app)
 
 	menu = gtk_menu_new();
 
-
-	g_signal_connect(menu, "realize", G_CALLBACK(status_menu), app);
-	app_indicator_set_menu(indicator, GTK_MENU(menu));
-	app_indicator_set_status(indicator, APP_INDICATOR_STATUS_ACTIVE);
-
-	//g_signal_connect(traymenu, "activate", G_CALLBACK(status_activate), app);
-	//g_signal_connect(traymenu, "popup-menu", G_CALLBACK(status_menu), app);
-	//status_menu(app);
-
-	GtkWidget *traymenu = gtk_menu_new();
-
 		// PLACEHOLDERS, FIX, small menu size if the new menu is bigger than the previous menu
 	traymenu_item_openapp = gtk_menu_item_new_with_label("Open App");
 	traymenu_item_openapp2 = gtk_menu_item_new_with_label("Open App");
@@ -258,6 +248,10 @@ void status_init(GtkApplication *app)
 	gtk_menu_shell_append(GTK_MENU_SHELL(menu), traymenu_item_vpn);
 	gtk_menu_shell_append(GTK_MENU_SHELL(menu), traymenu_item_exit);
 	gtk_widget_show_all(menu);
+
+	app_indicator_set_status(indicator, APP_INDICATOR_STATUS_ACTIVE);
+		indicator_signal_id = g_signal_connect(indicator, "new-icon", G_CALLBACK(status_menu), app);
+		//g_signal_connect(menu, "realize", G_CALLBACK(status_menu), app);
 	status_update();
 }
 
